@@ -137,6 +137,9 @@ Every parameter (seed, split, bins, model grids, LGD rules, stress scenarios, po
 
 Experiment tracking. Each training run is logged to MLflow (local store in mlruns/, not committed) and its models are registered as candidate. py -m creditrisk.registry promote applies the gates and sets production. py -m creditrisk.registry lineage --alias production --check shows the raw-file hashes, git commit, config hash and parameters behind a model. See docs/experiment_tracking.md.
 
+## Scoring API and batch scoring
+Scoring API. py -m creditrisk.export packages a registered model with its metadata and checksum. py -m creditrisk.api serves it with FastAPI: POST /v1/score returns the probability of default, a scorecard-scale score, a decision band and the top reason codes. Pydantic validates every request against the same ranges and allowed values as the training data checks, so out-of-range values and unknown fields return 422. Requests are logged as structured JSON with request ids and latency, without applicant values. py -m creditrisk.batch scores large files in chunks and sets aside invalid rows. A Dockerfile and a load test (py -m creditrisk.loadtest) are included. See docs/serving.md.
+
 ## Development
 ```
 pip install -r requirements.txt
@@ -149,12 +152,17 @@ Tests run on synthetic data and need no loan files. They cover the binner, featu
 
 ## Repository layout
 ```
-configs/        project.yaml (all parameters), schema_map.yaml (field map and known_at tags)
-docs/           field_dictionary_draft.md, target_definition.md
-src/creditrisk/ config, leakage, features, build_dataset, train, metrics, scoring, ecl, ecl_stress,
+configs/        project.yaml (all parameters, validation rules, serving cutoffs and reason codes), schema_map.yaml (field map and known_at tags)
+docs/           field_dictionary_draft.md, target_definition.md, experiment_tracking.md, serving.md
+examples/       sample request bodies for the scoring API
+src/creditrisk/ config, leakage, validation, features, model, build_dataset, train, metrics, scoring, ecl, ecl_stress,
                 interpret, state_check, report, plus inspect_files, check_schema, window_counts
-tests/          unit tests, leakage test, build-logic tests on synthetic loans, pin check
-reports/        funnel, per-set metrics, scorecard points, SHAP, state checks, LGD and stress tables, figures
+                lineage, tracking, registry (MLflow runs, versions, aliases, promotion gates)
+                serving, api, logs, healthcheck, export, score, batch, loadtest (scoring API and batch scoring)
+tests/          unit tests, leakage test, validation and train/serve skew tests, tracking and registry tests,
+                API, batch and load-test tests, build-logic tests on synthetic loans, pin check
+reports/        funnel, validation profiles, per-set metrics, scorecard points, SHAP, state checks, LGD and stress tables, figures
 .github/        CI workflow (ruff and pytest on every push)
-data/, artifacts/   not committed
+Dockerfile      scoring API image (requirements-serve.txt holds its pinned dependencies)
+data/, artifacts/, mlruns/, deploy/   not committed
 ```
